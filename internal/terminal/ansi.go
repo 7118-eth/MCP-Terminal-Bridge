@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+// cursorState holds saved cursor position and attributes
+type cursorState struct {
+	x, y         int
+	fg, bg       Color
+	attrs        Attributes
+}
+
 type ANSIParser struct {
 	buffer       *ScreenBuffer
 	state        parserState
@@ -13,6 +20,7 @@ type ANSIParser struct {
 	currentFG    Color
 	currentBG    Color
 	currentAttrs Attributes
+	savedCursor  *cursorState // Per-parser cursor save state
 }
 
 type parserState int
@@ -502,17 +510,8 @@ func (p *ANSIParser) processOSC(command string) {
 	// We don't need to handle these for a terminal buffer
 }
 
-// Cursor save/restore state
-type cursorState struct {
-	x, y         int
-	fg, bg       Color
-	attrs        Attributes
-}
-
-var savedCursor cursorState
-
 func (p *ANSIParser) saveCursor() {
-	savedCursor = cursorState{
+	p.savedCursor = &cursorState{
 		x:     p.buffer.cursorX,
 		y:     p.buffer.cursorY,
 		fg:    p.currentFG,
@@ -522,8 +521,10 @@ func (p *ANSIParser) saveCursor() {
 }
 
 func (p *ANSIParser) restoreCursor() {
-	p.buffer.MoveCursor(savedCursor.x, savedCursor.y)
-	p.currentFG = savedCursor.fg
-	p.currentBG = savedCursor.bg
-	p.currentAttrs = savedCursor.attrs
+	if p.savedCursor != nil {
+		p.buffer.MoveCursor(p.savedCursor.x, p.savedCursor.y)
+		p.currentFG = p.savedCursor.fg
+		p.currentBG = p.savedCursor.bg
+		p.currentAttrs = p.savedCursor.attrs
+	}
 }

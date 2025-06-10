@@ -55,15 +55,61 @@ func NewScreenBuffer(width, height int) *ScreenBuffer {
 	}
 
 	sb := &ScreenBuffer{
-		cells:   cells,
-		width:   width,
-		height:  height,
-		cursorX: 0,
-		cursorY: 0,
+		cells:         cells,
+		width:         width,
+		height:        height,
+		cursorX:       0,
+		cursorY:       0,
+		maxScrollback: 1000, // Default scrollback size
 	}
+
+	// Initialize scrollback buffer
+	sb.scrollback = make([][]Cell, sb.maxScrollback)
 
 	sb.parser = NewANSIParser(sb)
 	return sb
+}
+
+// SetScrollbackSize sets the maximum scrollback buffer size
+func (sb *ScreenBuffer) SetScrollbackSize(size int) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	
+	if size < 0 {
+		size = 0
+	}
+	
+	// Create new scrollback buffer
+	newScrollback := make([][]Cell, size)
+	
+	// Copy existing scrollback if any
+	if sb.scrollbackStart > 0 && size > 0 {
+		// Calculate how many lines to copy
+		linesToCopy := sb.scrollbackStart
+		if linesToCopy > size {
+			linesToCopy = size
+		}
+		if linesToCopy > sb.maxScrollback {
+			linesToCopy = sb.maxScrollback
+		}
+		
+		// Copy from old to new buffer
+		for i := 0; i < linesToCopy; i++ {
+			srcIndex := (sb.scrollbackStart - linesToCopy + i) % sb.maxScrollback
+			if srcIndex < 0 {
+				srcIndex += sb.maxScrollback
+			}
+			newScrollback[i] = sb.scrollback[srcIndex]
+		}
+		
+		// Update start index
+		if sb.scrollbackStart > size {
+			sb.scrollbackStart = size
+		}
+	}
+	
+	sb.scrollback = newScrollback
+	sb.maxScrollback = size
 }
 
 func (sb *ScreenBuffer) Write(data []byte) {
@@ -165,6 +211,8 @@ func (sb *ScreenBuffer) Render(format string) (string, error) {
 		return sb.renderRaw(), nil
 	case "ansi":
 		return sb.renderANSI(), nil
+	case "scrollback":
+		return sb.renderWithScrollback(), nil
 	default:
 		return sb.renderPlain(), nil
 	}
@@ -187,9 +235,43 @@ func (sb *ScreenBuffer) renderPlain() string {
 }
 
 func (sb *ScreenBuffer) renderRaw() string {
-	// For now, raw format is the same as plain
-	// In the future, this could include ANSI sequences
-	return sb.renderPlain()
+	var buf bytes.Buffer
+	
+	// Track current state to minimize escape sequences
+	currentFG := Color{Default: true}
+	currentBG := Color{Default: true}
+	currentAttrs := Attributes{}
+	
+	// Start with reset
+	buf.WriteString("\x1b[0m")
+	
+	for y := 0; y < sb.height; y++ {
+		for x := 0; x < sb.width; x++ {
+			cell := sb.cells[y][x]
+			
+			// Only emit SGR if attributes changed
+			if cell.Foreground != currentFG || cell.Background != currentBG || cell.Attributes != currentAttrs {
+				sgr := sb.buildSGRSequence(cell.Foreground, cell.Background, cell.Attributes)
+				if sgr != "" {
+					buf.WriteString(sgr)
+				}
+				currentFG = cell.Foreground
+				currentBG = cell.Background
+				currentAttrs = cell.Attributes
+			}
+			
+			buf.WriteRune(cell.Rune)
+		}
+		
+		if y < sb.height-1 {
+			buf.WriteRune('\n')
+		}
+	}
+	
+	// Position cursor at the end
+	buf.WriteString(fmt.Sprintf("\x1b[%d;%dH", sb.cursorY+1, sb.cursorX+1))
+	
+	return buf.String()
 }
 
 func (sb *ScreenBuffer) renderANSI() string {

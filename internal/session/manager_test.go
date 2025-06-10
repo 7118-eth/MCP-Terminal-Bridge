@@ -4,9 +4,14 @@ import (
 	"fmt"
 	"testing"
 	"time"
+	
+	"github.com/bioharz/mcp-terminal-tester/internal/utils"
 )
 
 func TestManager_CreateSession(t *testing.T) {
+	// Initialize logger for tests
+	utils.InitLogger()
+	
 	manager := NewManager()
 	
 	// Test creating a session
@@ -42,6 +47,7 @@ func TestManager_CreateSession(t *testing.T) {
 }
 
 func TestManager_MaxSessions(t *testing.T) {
+	utils.InitLogger()
 	manager := NewManager()
 	manager.maxSessions = 3 // Set low limit for testing
 	
@@ -77,6 +83,7 @@ func TestManager_MaxSessions(t *testing.T) {
 }
 
 func TestManager_GetSession_NotFound(t *testing.T) {
+	utils.InitLogger()
 	manager := NewManager()
 	
 	_, err := manager.GetSession("non-existent-id")
@@ -86,6 +93,7 @@ func TestManager_GetSession_NotFound(t *testing.T) {
 }
 
 func TestManager_RemoveSession(t *testing.T) {
+	utils.InitLogger()
 	manager := NewManager()
 	
 	// Create a session
@@ -114,6 +122,7 @@ func TestManager_RemoveSession(t *testing.T) {
 }
 
 func TestManager_ListSessions(t *testing.T) {
+	utils.InitLogger()
 	manager := NewManager()
 	
 	// Initially empty
@@ -151,6 +160,7 @@ func TestManager_ListSessions(t *testing.T) {
 }
 
 func TestManager_CleanupIdleSessions(t *testing.T) {
+	utils.InitLogger()
 	manager := NewManager()
 	manager.sessionTimeout = 100 * time.Millisecond // Short timeout for testing
 	

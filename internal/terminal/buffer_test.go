@@ -214,7 +214,7 @@ func TestScreenBuffer_RenderPlain(t *testing.T) {
 
 func TestScreenBuffer_Scrollback(t *testing.T) {
 	buffer := NewScreenBuffer(5, 3)
-	buffer.maxScrollback = 10 // Small for testing
+	buffer.SetScrollbackSize(10) // Small for testing
 	
 	// Add some lines that will go to scrollback
 	for i := 0; i < 5; i++ {

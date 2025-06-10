@@ -28,7 +28,8 @@ func TestANSIParser_NewlineHandling(t *testing.T) {
 	buffer := NewScreenBuffer(10, 3)
 	parser := NewANSIParser(buffer)
 
-	// Test newline
+	// Test that newline only moves down, not to start of line
+	// This matches real terminal behavior where \n is just line feed
 	parser.Parse([]byte("Line1\nLine2"))
 	
 	// Check first line
@@ -36,7 +37,35 @@ func TestANSIParser_NewlineHandling(t *testing.T) {
 		t.Error("First line incorrect")
 	}
 	
-	// Check second line
+	// Check that Line2 continues from where cursor was (column 5)
+	// Since \n doesn't reset X position, Line2 starts at column 5 of line 1
+	actualLine1 := string(getCellRunes(buffer.cells[1]))
+	if actualLine1[:5] != "     " {
+		t.Errorf("Line 1 should have spaces at start, got '%s'", actualLine1)
+	}
+	if actualLine1[5:10] != "Line2" {
+		t.Errorf("Line 1 should have 'Line2' starting at column 5, got '%s'", actualLine1)
+	}
+	
+	// After writing to column 10 (5 + len("Line2")), we wrap to next line
+	if buffer.cursorX != 0 || buffer.cursorY != 2 {
+		t.Errorf("Expected cursor at (0,2) after wrap, got (%d,%d)", buffer.cursorX, buffer.cursorY)
+	}
+}
+
+func TestANSIParser_NewlineWithCarriageReturn(t *testing.T) {
+	buffer := NewScreenBuffer(10, 3)
+	parser := NewANSIParser(buffer)
+
+	// Test proper line ending with \r\n
+	parser.Parse([]byte("Line1\r\nLine2"))
+	
+	// Check first line
+	if string(getCellRunes(buffer.cells[0][:5])) != "Line1" {
+		t.Error("First line incorrect")
+	}
+	
+	// Check second line starts at beginning
 	if string(getCellRunes(buffer.cells[1][:5])) != "Line2" {
 		t.Error("Second line incorrect")
 	}
@@ -190,22 +219,30 @@ func TestANSIParser_256Colors(t *testing.T) {
 }
 
 func TestANSIParser_ScrollUp(t *testing.T) {
-	buffer := NewScreenBuffer(5, 3)
+	buffer := NewScreenBuffer(10, 3)
 	parser := NewANSIParser(buffer)
 
-	// Fill three lines
-	parser.Parse([]byte("Line1\nLine2\nLine3\n"))
+	// Fill three lines using carriage return + line feed for proper line positioning
+	parser.Parse([]byte("Line1\r\nLine2\r\nLine3\r\n"))
 	
 	// This should cause scroll
 	parser.Parse([]byte("Line4"))
 	
-	// Check that Line1 is gone, Line2 is at top
-	if string(getCellRunes(buffer.cells[0][:5])) != "Line2" {
-		t.Error("First line should be Line2 after scroll")
+	// Debug output
+	for y := 0; y < 3; y++ {
+		line := string(getCellRunes(buffer.cells[y]))
+		t.Logf("Line %d after scroll: '%s'", y, line)
 	}
 	
-	if string(getCellRunes(buffer.cells[2][:5])) != "Line4" {
-		t.Error("Last line should be Line4")
+	// Check that Line1 is gone, Line2 is at top
+	line0 := string(getCellRunes(buffer.cells[0][:5]))
+	if line0 != "Line2" {
+		t.Errorf("First line should be 'Line2' after scroll, got '%s'", line0)
+	}
+	
+	line2 := string(getCellRunes(buffer.cells[2][:5]))
+	if line2 != "Line4" {
+		t.Errorf("Last line should be 'Line4', got '%s'", line2)
 	}
 }
 
@@ -215,13 +252,13 @@ func TestANSIParser_SaveRestoreCursor(t *testing.T) {
 
 	// Move cursor and save
 	buffer.MoveCursor(5, 3)
-	parser.Parse([]byte("\x1b[s")) // Save cursor
+	parser.Parse([]byte("\x1b7")) // Save cursor (DECSC)
 	
 	// Move cursor elsewhere
 	buffer.MoveCursor(8, 7)
 	
 	// Restore cursor
-	parser.Parse([]byte("\x1b[8")) // Restore cursor
+	parser.Parse([]byte("\x1b8")) // Restore cursor (DECRC)
 	
 	if buffer.cursorX != 5 || buffer.cursorY != 3 {
 		t.Errorf("Cursor not restored correctly, expected (5,3), got (%d,%d)", 

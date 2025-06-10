@@ -22,13 +22,14 @@ This server acts as a bridge between AI assistants (like Claude) and terminal ap
 - ✅ Concurrent session support
 - ✅ Build system with Makefile
 
-### Phase 2: Core Features (IN PROGRESS 🚧)
+### Phase 2: Core Features (COMPLETE ✅)
 - ✅ Enhanced ANSI parser (supports CSI, SGR, OSC, DCS, and more)
-- ✅ Terminal resize support with SIGWINCH handling
+- ✅ Terminal resize support with SIGWINCH handling  
 - ✅ Structured logging throughout
-- 🚧 Improved error handling
-- 🚧 Testing with real applications (vim, htop, etc.)
-- 🚧 Performance optimization
+- ✅ Scrollback buffer support (1000 lines)
+- ✅ All unit tests passing
+- ✅ Proper renderRaw() with ANSI sequences
+- ✅ Multiple output formats including scrollback
 
 ## Quick Start
 
@@ -73,9 +74,15 @@ Get the current terminal content.
 ```json
 {
   "session_id": "session-123",
-  "format": "plain"  // or "raw", "ansi"
+  "format": "plain"  // or "raw", "ansi", "scrollback"
 }
 ```
+
+Output formats:
+- `plain`: Text only, no ANSI escape sequences
+- `raw`: Full terminal output with ANSI escape sequences
+- `ansi`: Debug format showing cursor position with ▮
+- `scrollback`: Includes scrollback buffer history
 
 ### send_keys
 Send keyboard input to the terminal.

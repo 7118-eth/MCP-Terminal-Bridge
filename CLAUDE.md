@@ -36,10 +36,10 @@
 
 ### Known Issues & Limitations
 
-1. **Test Failures**: Some unit tests fail due to:
-   - Newline handling (LF doesn't reset cursor X)
-   - Cursor save/restore needs global state
-   - Scrollback test needs proper initialization
+1. **Test Failures**: All unit tests now pass ✅
+   - Fixed newline handling expectations (LF correctly doesn't reset cursor X)
+   - Fixed cursor save/restore to be per-parser state
+   - Fixed scrollback buffer initialization
 
 2. **Not Implemented**:
    - Mouse support
