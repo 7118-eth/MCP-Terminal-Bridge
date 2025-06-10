@@ -141,3 +141,40 @@ make clean
 - `SESSION_TIMEOUT`: Idle timeout in minutes (default: 30)
 
 This document should be updated as the project evolves.
+
+## File Structure Summary
+
+### Core Implementation Files
+- `cmd/server/main.go` - Entry point, initializes logger and server
+- `internal/mcp/server.go` - MCP server setup, tool registration
+- `internal/session/manager.go` - Session lifecycle management
+- `internal/session/session.go` - Individual session logic
+- `internal/terminal/pty.go` - PTY wrapper with resize support
+- `internal/terminal/buffer.go` - Screen buffer with scrollback
+- `internal/terminal/ansi.go` - ANSI escape sequence parser
+- `internal/tools/handlers.go` - All 9 MCP tool implementations
+- `internal/tools/keys.go` - Special key mapping (arrows, Ctrl, etc.)
+- `internal/utils/logger.go` - Structured logging setup
+
+### Test Files
+- `internal/terminal/ansi_test.go` - ANSI parser unit tests
+- `internal/terminal/buffer_test.go` - Buffer operation tests
+- `internal/session/manager_test.go` - Session management tests
+- `test/apps/echo.go` - Basic I/O test application
+- `test/apps/menu.go` - Interactive menu with navigation
+- `test/apps/progress.go` - Animation and progress bar tests
+
+### Documentation
+- `README.md` - Project overview and quick start
+- `project.md` - Technical design document
+- `progress.md` - Development progress tracking
+- `CLAUDE.md` - This file, AI assistant context
+- `test/apps/README.md` - Test application documentation
+
+### Build Files
+- `Makefile` - Main build system
+- `test/apps/Makefile` - Test app builds
+- `go.mod` / `go.sum` - Go dependencies
+- `.gitignore` - Git ignore rules
+
+All code is fully implemented and builds successfully. The main areas needing work are real-world testing and edge case handling.
