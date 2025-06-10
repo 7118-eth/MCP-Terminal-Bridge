@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/bioharz/mcp-terminal-tester/internal/session"
 	"github.com/bioharz/mcp-terminal-tester/internal/tools"
@@ -16,6 +17,8 @@ type Server struct {
 }
 
 func NewServer() (*Server, error) {
+	slog.Info("Creating MCP server")
+	
 	// Create session manager
 	sm := session.NewManager()
 
@@ -33,13 +36,20 @@ func NewServer() (*Server, error) {
 
 	// Register tools
 	if err := s.registerTools(); err != nil {
+		slog.Error("Failed to register tools", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("failed to register tools: %w", err)
 	}
 
+	// Start session cleanup routine
+	sm.StartCleanupRoutine()
+
+	slog.Info("MCP server created successfully", slog.Int("tools_registered", 8))
 	return s, nil
 }
 
 func (s *Server) registerTools() error {
+	slog.Debug("Registering MCP tools")
+	
 	// Create tool handlers with session manager
 	toolHandlers := tools.NewHandlers(s.sessionManager)
 
@@ -135,9 +145,37 @@ func (s *Server) registerTools() error {
 	)
 	s.mcpServer.AddTool(listTool, toolHandlers.ListSessions)
 
+	// Register resize_terminal tool
+	resizeTool := mcp.NewTool("resize_terminal",
+		mcp.WithDescription("Resize the terminal window"),
+		mcp.WithString("session_id",
+			mcp.Required(),
+			mcp.Description("The session ID"),
+		),
+		mcp.WithNumber("width",
+			mcp.Required(),
+			mcp.Description("Terminal width in columns"),
+			mcp.Min(1),
+			mcp.Max(500),
+		),
+		mcp.WithNumber("height",
+			mcp.Required(),
+			mcp.Description("Terminal height in rows"),
+			mcp.Min(1),
+			mcp.Max(200),
+		),
+	)
+	s.mcpServer.AddTool(resizeTool, toolHandlers.ResizeTerminal)
+
+	slog.Debug("All tools registered successfully")
 	return nil
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	return server.ServeStdio(s.mcpServer)
+	slog.Info("Starting MCP server in stdio mode")
+	err := server.ServeStdio(s.mcpServer)
+	if err != nil {
+		slog.Error("MCP server error", slog.String("error", err.Error()))
+	}
+	return err
 }

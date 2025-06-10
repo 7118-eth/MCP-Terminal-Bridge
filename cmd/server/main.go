@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/bioharz/mcp-terminal-tester/internal/mcp"
+	"github.com/bioharz/mcp-terminal-tester/internal/utils"
 )
 
 func main() {
+	// Initialize logger first
+	utils.InitLogger()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -20,7 +25,7 @@ func main() {
 
 	go func() {
 		<-sigChan
-		log.Println("Shutting down server...")
+		slog.Info("Shutting down server...")
 		cancel()
 	}()
 
@@ -36,10 +41,11 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Starting MCP Terminal Tester on port %s", port)
+	slog.Info("Starting MCP Terminal Tester", slog.String("mode", "stdio"))
 
 	// Run the server
 	if err := srv.Run(ctx); err != nil {
-		log.Fatalf("Server error: %v", err)
+		slog.Error("Server error", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 }

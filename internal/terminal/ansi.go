@@ -22,6 +22,8 @@ const (
 	stateEscape
 	stateCSI
 	stateOSC
+	stateDCS     // Device Control String
+	stateCharset // Character set selection
 )
 
 func NewANSIParser(buffer *ScreenBuffer) *ANSIParser {
@@ -44,6 +46,10 @@ func (p *ANSIParser) Parse(data []byte) {
 			p.handleCSI(b)
 		case stateOSC:
 			p.handleOSC(b)
+		case stateDCS:
+			p.handleDCS(b)
+		case stateCharset:
+			p.handleCharset(b)
 		}
 	}
 }
@@ -96,8 +102,48 @@ func (p *ANSIParser) handleEscape(b byte) {
 	case ']':
 		p.state = stateOSC
 		p.escapeBuffer.Reset()
-	case 'c': // Reset
+	case 'P':
+		p.state = stateDCS
+		p.escapeBuffer.Reset()
+	case '(', ')', '*', '+': // Character set selection
+		p.state = stateCharset
+		p.escapeBuffer.WriteByte(b)
+	case 'c': // RIS - Reset to Initial State
 		p.buffer.Clear()
+		p.currentFG = Color{Default: true}
+		p.currentBG = Color{Default: true}
+		p.currentAttrs = Attributes{}
+		p.state = stateNormal
+	case 'D': // IND - Index (move down one line)
+		p.buffer.cursorY++
+		if p.buffer.cursorY >= p.buffer.height {
+			p.buffer.ScrollUp()
+			p.buffer.cursorY = p.buffer.height - 1
+		}
+		p.state = stateNormal
+	case 'M': // RI - Reverse Index (move up one line)
+		if p.buffer.cursorY > 0 {
+			p.buffer.cursorY--
+		} else {
+			p.buffer.ScrollDown()
+		}
+		p.state = stateNormal
+	case 'E': // NEL - Next Line
+		p.buffer.cursorX = 0
+		p.buffer.cursorY++
+		if p.buffer.cursorY >= p.buffer.height {
+			p.buffer.ScrollUp()
+			p.buffer.cursorY = p.buffer.height - 1
+		}
+		p.state = stateNormal
+	case '7': // DECSC - Save Cursor
+		p.saveCursor()
+		p.state = stateNormal
+	case '8': // DECRC - Restore Cursor
+		p.restoreCursor()
+		p.state = stateNormal
+	case 'H': // HTS - Horizontal Tab Set
+		// Set tab stop at current position
 		p.state = stateNormal
 	default:
 		// Unknown escape sequence
@@ -197,15 +243,84 @@ func (p *ANSIParser) handleCSI(b byte) {
 		}
 	case 'm': // SGR - Select Graphic Rendition
 		p.handleSGR(params)
+	case 's': // SCP - Save Cursor Position
+		p.saveCursor()
+	case 'u': // RCP - Restore Cursor Position
+		p.restoreCursor()
+	case 'L': // IL - Insert Lines
+		n := 1
+		if len(params) > 0 && params[0] > 0 {
+			n = params[0]
+		}
+		p.buffer.InsertLines(p.buffer.cursorY, n)
+	case 'M': // DL - Delete Lines
+		n := 1
+		if len(params) > 0 && params[0] > 0 {
+			n = params[0]
+		}
+		p.buffer.DeleteLines(p.buffer.cursorY, n)
+	case 'P': // DCH - Delete Characters
+		n := 1
+		if len(params) > 0 && params[0] > 0 {
+			n = params[0]
+		}
+		p.buffer.DeleteChars(p.buffer.cursorX, p.buffer.cursorY, n)
+	case '@': // ICH - Insert Characters
+		n := 1
+		if len(params) > 0 && params[0] > 0 {
+			n = params[0]
+		}
+		p.buffer.InsertChars(p.buffer.cursorX, p.buffer.cursorY, n)
+	case 'X': // ECH - Erase Characters
+		n := 1
+		if len(params) > 0 && params[0] > 0 {
+			n = params[0]
+		}
+		for i := 0; i < n && p.buffer.cursorX+i < p.buffer.width; i++ {
+			p.buffer.SetCell(p.buffer.cursorX+i, p.buffer.cursorY, ' ', p.currentFG, p.currentBG, Attributes{})
+		}
+	case 'G': // CHA - Cursor Horizontal Absolute
+		col := 1
+		if len(params) > 0 {
+			col = params[0]
+		}
+		p.buffer.MoveCursor(col-1, p.buffer.cursorY)
+	case 'd': // VPA - Vertical Position Absolute
+		row := 1
+		if len(params) > 0 {
+			row = params[0]
+		}
+		p.buffer.MoveCursor(p.buffer.cursorX, row-1)
+	case 'r': // DECSTBM - Set Top and Bottom Margins
+		// TODO: Implement scrolling regions
+	case 'h': // SM - Set Mode
+		// TODO: Implement various modes
+	case 'l': // RM - Reset Mode
+		// TODO: Implement various modes
+	case '?': // Private modes
+		if len(p.escapeBuffer.String()) > 0 && p.escapeBuffer.String()[0] == '?' {
+			// Handle private modes like ?25h (show cursor), ?25l (hide cursor)
+		}
 	}
 
 	p.state = stateNormal
 }
 
 func (p *ANSIParser) handleOSC(b byte) {
-	// For now, just consume OSC sequences without processing
-	if b == 0x07 || b == 0x1B { // BEL or ESC
+	// OSC sequences are terminated by BEL or ST (ESC \)
+	if b == 0x07 { // BEL
+		// Process OSC command
+		p.processOSC(p.escapeBuffer.String())
 		p.state = stateNormal
+	} else if b == 0x1B { // Might be start of ST
+		// Look for \ to complete ST
+		p.escapeBuffer.WriteByte(b)
+	} else if b == '\\' && p.escapeBuffer.Len() > 0 && p.escapeBuffer.Bytes()[p.escapeBuffer.Len()-1] == 0x1B {
+		// Found ST (ESC \)
+		p.processOSC(p.escapeBuffer.String()[:p.escapeBuffer.Len()-1])
+		p.state = stateNormal
+	} else {
+		p.escapeBuffer.WriteByte(b)
 	}
 }
 
@@ -310,10 +425,105 @@ func (p *ANSIParser) ansiToColor(code int) Color {
 }
 
 func (p *ANSIParser) ansi256ToColor(code int) Color {
-	// Simplified 256 color support
-	// For now, just map to basic colors
-	if code < 8 {
-		return p.ansiToColor(code)
+	if code < 16 {
+		// Standard and bright colors
+		if code < 8 {
+			return p.ansiToColor(code)
+		} else {
+			// Bright colors (8-15)
+			return p.ansiBrightToColor(code - 8)
+		}
+	} else if code < 232 {
+		// 216 color cube (16-231)
+		code -= 16
+		r := (code / 36) * 51
+		g := ((code / 6) % 6) * 51
+		b := (code % 6) * 51
+		return Color{R: uint8(r), G: uint8(g), B: uint8(b)}
+	} else {
+		// Grayscale (232-255)
+		gray := 8 + (code-232)*10
+		return Color{R: uint8(gray), G: uint8(gray), B: uint8(gray)}
 	}
-	return Color{R: uint8(code), G: uint8(code), B: uint8(code)}
+}
+
+func (p *ANSIParser) ansiBrightToColor(code int) Color {
+	// Bright ANSI colors
+	colors := []Color{
+		{R: 85, G: 85, B: 85},       // Bright Black (Gray)
+		{R: 255, G: 85, B: 85},      // Bright Red
+		{R: 85, G: 255, B: 85},      // Bright Green
+		{R: 255, G: 255, B: 85},     // Bright Yellow
+		{R: 85, G: 85, B: 255},      // Bright Blue
+		{R: 255, G: 85, B: 255},     // Bright Magenta
+		{R: 85, G: 255, B: 255},     // Bright Cyan
+		{R: 255, G: 255, B: 255},    // Bright White
+	}
+
+	if code >= 0 && code < len(colors) {
+		return colors[code]
+	}
+	return Color{Default: true}
+}
+
+// Additional helper methods
+
+func (p *ANSIParser) handleDCS(b byte) {
+	// DCS sequences are terminated by ST (ESC \)
+	if b == 0x1B {
+		p.escapeBuffer.WriteByte(b)
+	} else if b == '\\' && p.escapeBuffer.Len() > 0 && p.escapeBuffer.Bytes()[p.escapeBuffer.Len()-1] == 0x1B {
+		// Found ST, process DCS
+		// For now, we just ignore DCS sequences
+		p.state = stateNormal
+	} else {
+		p.escapeBuffer.WriteByte(b)
+	}
+}
+
+func (p *ANSIParser) handleCharset(b byte) {
+	// Handle character set selection
+	// For now, we just ignore these
+	p.state = stateNormal
+}
+
+func (p *ANSIParser) processOSC(command string) {
+	// Process OSC commands (like setting window title)
+	// Format: OSC Ps ; Pt BEL
+	parts := strings.SplitN(command, ";", 2)
+	if len(parts) < 1 {
+		return
+	}
+	
+	// Common OSC commands:
+	// 0 - Set window title and icon
+	// 1 - Set icon 
+	// 2 - Set window title
+	// We don't need to handle these for a terminal buffer
+}
+
+// Cursor save/restore state
+type cursorState struct {
+	x, y         int
+	fg, bg       Color
+	attrs        Attributes
+}
+
+var savedCursor cursorState
+
+func (p *ANSIParser) saveCursor() {
+	savedCursor = cursorState{
+		x:     p.buffer.cursorX,
+		y:     p.buffer.cursorY,
+		fg:    p.currentFG,
+		bg:    p.currentBG,
+		attrs: p.currentAttrs,
+	}
+}
+
+func (p *ANSIParser) restoreCursor() {
+	p.buffer.MoveCursor(savedCursor.x, savedCursor.y)
+	p.currentFG = savedCursor.fg
+	p.currentBG = savedCursor.bg
+	p.currentAttrs = savedCursor.attrs
 }

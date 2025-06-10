@@ -33,12 +33,28 @@ test:
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -v -cover ./...
+	$(GOTEST) -v -cover -coverprofile=coverage.out ./...
+	@echo "Coverage report:"
+	$(GOCMD) tool cover -func=coverage.out
 
 # Run integration tests
 test-integration:
 	@echo "Running integration tests..."
 	$(GOTEST) -v -tags=integration ./test/integration
+
+# Run specific package tests
+test-terminal:
+	@echo "Running terminal package tests..."
+	$(GOTEST) -v ./internal/terminal
+
+test-session:
+	@echo "Running session package tests..."
+	$(GOTEST) -v ./internal/session
+
+# Build test applications
+test-apps:
+	@echo "Building test applications..."
+	@cd test/apps && $(MAKE) all
 
 # Clean build artifacts
 clean:

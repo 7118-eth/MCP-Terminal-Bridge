@@ -13,7 +13,7 @@ This server acts as a bridge between AI assistants (like Claude) and terminal ap
 ## Current Implementation Status
 
 ### Phase 1: Foundation (COMPLETE ✅)
-- ✅ All 8 MCP tools implemented and working
+- ✅ All 9 MCP tools implemented and working
 - ✅ Session management with automatic cleanup
 - ✅ PTY wrapper for terminal control
 - ✅ Screen buffer with basic ANSI support
@@ -23,8 +23,9 @@ This server acts as a bridge between AI assistants (like Claude) and terminal ap
 - ✅ Build system with Makefile
 
 ### Phase 2: Core Features (IN PROGRESS 🚧)
-- 🚧 Enhanced ANSI parser (currently supports basic CSI/SGR)
-- 🚧 Terminal resize support
+- ✅ Enhanced ANSI parser (supports CSI, SGR, OSC, DCS, and more)
+- ✅ Terminal resize support with SIGWINCH handling
+- ✅ Structured logging throughout
 - 🚧 Improved error handling
 - 🚧 Testing with real applications (vim, htop, etc.)
 - 🚧 Performance optimization
@@ -78,6 +79,7 @@ Send keyboard input to the terminal.
 ### Other Tools
 - `get_cursor_position`: Get current cursor position
 - `get_screen_size`: Get terminal dimensions
+- `resize_terminal`: Resize the terminal window
 - `restart_app`: Restart a session
 - `stop_app`: Terminate a session
 - `list_sessions`: List all active sessions
@@ -96,7 +98,9 @@ Environment variables:
 - Uses `creack/pty` v1.1.24 for terminal emulation
 - Runs in stdio mode (standard input/output)
 - Session cleanup runs every 5 minutes
-- Default terminal size: 80x24
+- Default terminal size: 80x24 (resizable via `resize_terminal` tool)
+- Structured JSON logging to stderr (configurable via LOG_LEVEL)
+- Enhanced ANSI parser supports most common escape sequences
 
 ## Development
 

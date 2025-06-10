@@ -2,8 +2,11 @@ package session
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/bioharz/mcp-terminal-tester/internal/utils"
 )
 
 type Manager struct {
@@ -14,11 +17,16 @@ type Manager struct {
 }
 
 func NewManager() *Manager {
-	return &Manager{
+	m := &Manager{
 		sessions: make(map[string]*Session),
 		maxSessions: 100,
 		sessionTimeout: 30 * time.Minute,
 	}
+	slog.Info("Session manager created",
+		slog.Int("max_sessions", m.maxSessions),
+		slog.Duration("session_timeout", m.sessionTimeout),
+	)
+	return m
 }
 
 func (m *Manager) CreateSession(command string, args []string, env map[string]string) (*Session, error) {
@@ -26,15 +34,29 @@ func (m *Manager) CreateSession(command string, args []string, env map[string]st
 	defer m.mu.Unlock()
 
 	if len(m.sessions) >= m.maxSessions {
-		return nil, fmt.Errorf("maximum number of sessions (%d) reached", m.maxSessions)
+		err := fmt.Errorf("maximum number of sessions (%d) reached", m.maxSessions)
+		slog.Error("Failed to create session", 
+			slog.String("error", err.Error()),
+			slog.Int("current_sessions", len(m.sessions)),
+		)
+		return nil, err
 	}
 
 	session, err := NewSession(command, args, env)
 	if err != nil {
+		utils.LogError(err, "Failed to create session",
+			slog.String("command", command),
+			slog.Any("args", args),
+		)
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	m.sessions[session.ID] = session
+	utils.LogSessionEvent(session.ID, "created",
+		slog.String("command", command),
+		slog.Any("args", args),
+		slog.Int("total_sessions", len(m.sessions)),
+	)
 	return session, nil
 }
 
@@ -44,11 +66,17 @@ func (m *Manager) GetSession(id string) (*Session, error) {
 
 	session, exists := m.sessions[id]
 	if !exists {
-		return nil, fmt.Errorf("session not found: %s", id)
+		err := fmt.Errorf("session not found: %s", id)
+		slog.Debug("Session lookup failed",
+			slog.String("session_id", id),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
 
 	// Update last active time
 	session.UpdateLastActive()
+	slog.Debug("Session accessed", slog.String("session_id", id))
 
 	return session, nil
 }
@@ -59,15 +87,24 @@ func (m *Manager) RemoveSession(id string) error {
 
 	session, exists := m.sessions[id]
 	if !exists {
-		return fmt.Errorf("session not found: %s", id)
+		err := fmt.Errorf("session not found: %s", id)
+		slog.Debug("Cannot remove non-existent session",
+			slog.String("session_id", id),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
 
 	// Clean up the session
 	if err := session.Close(); err != nil {
+		utils.LogError(err, "Failed to close session", slog.String("session_id", id))
 		return fmt.Errorf("failed to close session: %w", err)
 	}
 
 	delete(m.sessions, id)
+	utils.LogSessionEvent(id, "removed",
+		slog.Int("remaining_sessions", len(m.sessions)),
+	)
 	return nil
 }
 
@@ -88,21 +125,39 @@ func (m *Manager) CleanupIdleSessions() {
 	defer m.mu.Unlock()
 
 	now := time.Now()
+	cleaned := 0
 	for id, session := range m.sessions {
-		if now.Sub(session.LastActive) > m.sessionTimeout {
+		idleTime := now.Sub(session.LastActive)
+		if idleTime > m.sessionTimeout {
 			if err := session.Close(); err != nil {
-				// Log error but continue cleanup
-				fmt.Printf("Error closing idle session %s: %v\n", id, err)
+				utils.LogError(err, "Error closing idle session",
+					slog.String("session_id", id),
+					slog.Duration("idle_time", idleTime),
+				)
 			}
 			delete(m.sessions, id)
+			utils.LogSessionEvent(id, "cleaned_idle",
+				slog.Duration("idle_time", idleTime),
+			)
+			cleaned++
 		}
+	}
+	if cleaned > 0 {
+		slog.Info("Idle session cleanup completed",
+			slog.Int("cleaned", cleaned),
+			slog.Int("remaining", len(m.sessions)),
+		)
 	}
 }
 
 func (m *Manager) StartCleanupRoutine() {
-	ticker := time.NewTicker(5 * time.Minute)
+	interval := 5 * time.Minute
+	slog.Info("Starting session cleanup routine", slog.Duration("interval", interval))
+	
+	ticker := time.NewTicker(interval)
 	go func() {
 		for range ticker.C {
+			slog.Debug("Running idle session cleanup")
 			m.CleanupIdleSessions()
 		}
 	}()

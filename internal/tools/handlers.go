@@ -3,9 +3,11 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/bioharz/mcp-terminal-tester/internal/session"
+	"github.com/bioharz/mcp-terminal-tester/internal/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -20,10 +22,17 @@ func NewHandlers(sm *session.Manager) *Handlers {
 }
 
 func (h *Handlers) LaunchApp(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	utils.LogToolCall("launch_app", "")
+	
 	args := request.GetArguments()
 	command, ok := args["command"].(string)
 	if !ok {
-		return nil, fmt.Errorf("command parameter is required")
+		err := fmt.Errorf("command parameter is required")
+		slog.Error("Invalid tool call", 
+			slog.String("tool", "launch_app"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
 
 	// Extract args if provided
@@ -53,8 +62,18 @@ func (h *Handlers) LaunchApp(ctx context.Context, request mcp.CallToolRequest) (
 	// Create new session
 	sess, err := h.sessionManager.CreateSession(command, cmdArgs, env)
 	if err != nil {
+		utils.LogError(err, "Failed to launch app",
+			slog.String("tool", "launch_app"),
+			slog.String("command", command),
+		)
 		return nil, fmt.Errorf("failed to launch app: %w", err)
 	}
+
+	slog.Info("App launched successfully",
+		slog.String("tool", "launch_app"),
+		slog.String("session_id", sess.ID),
+		slog.String("command", command),
+	)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -70,8 +89,15 @@ func (h *Handlers) ViewScreen(ctx context.Context, request mcp.CallToolRequest) 
 	args := request.GetArguments()
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		err := fmt.Errorf("session_id parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "view_screen"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
+	
+	utils.LogToolCall("view_screen", sessionID)
 
 	format := "plain"
 	if formatParam, exists := args["format"]; exists {
@@ -106,13 +132,25 @@ func (h *Handlers) SendKeys(ctx context.Context, request mcp.CallToolRequest) (*
 	args := request.GetArguments()
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		err := fmt.Errorf("session_id parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "send_keys"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
 
 	keys, ok := args["keys"].(string)
 	if !ok {
-		return nil, fmt.Errorf("keys parameter is required")
+		err := fmt.Errorf("keys parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "send_keys"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
+	
+	utils.LogToolCall("send_keys", sessionID, slog.Int("key_count", len(keys)))
 
 	sess, err := h.sessionManager.GetSession(sessionID)
 	if err != nil {
@@ -121,8 +159,18 @@ func (h *Handlers) SendKeys(ctx context.Context, request mcp.CallToolRequest) (*
 
 	// Map special keys
 	mappedKeys := MapKeys(keys)
+	if mappedKeys != keys {
+		slog.Debug("Keys mapped",
+			slog.String("original", keys),
+			slog.String("mapped", fmt.Sprintf("%q", mappedKeys)),
+		)
+	}
 
 	if err := sess.SendKeys(mappedKeys); err != nil {
+		utils.LogError(err, "Failed to send keys",
+			slog.String("tool", "send_keys"),
+			slog.String("session_id", sessionID),
+		)
 		return nil, err
 	}
 
@@ -140,8 +188,15 @@ func (h *Handlers) GetCursorPosition(ctx context.Context, request mcp.CallToolRe
 	args := request.GetArguments()
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		err := fmt.Errorf("session_id parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "get_cursor_position"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
+	
+	utils.LogToolCall("get_cursor_position", sessionID)
 
 	sess, err := h.sessionManager.GetSession(sessionID)
 	if err != nil {
@@ -164,8 +219,15 @@ func (h *Handlers) GetScreenSize(ctx context.Context, request mcp.CallToolReques
 	args := request.GetArguments()
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		err := fmt.Errorf("session_id parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "get_screen_size"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
+	
+	utils.LogToolCall("get_screen_size", sessionID)
 
 	sess, err := h.sessionManager.GetSession(sessionID)
 	if err != nil {
@@ -188,8 +250,15 @@ func (h *Handlers) RestartApp(ctx context.Context, request mcp.CallToolRequest) 
 	args := request.GetArguments()
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		err := fmt.Errorf("session_id parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "restart_app"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
+	
+	utils.LogToolCall("restart_app", sessionID)
 
 	sess, err := h.sessionManager.GetSession(sessionID)
 	if err != nil {
@@ -214,8 +283,15 @@ func (h *Handlers) StopApp(ctx context.Context, request mcp.CallToolRequest) (*m
 	args := request.GetArguments()
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		err := fmt.Errorf("session_id parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "stop_app"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
 	}
+	
+	utils.LogToolCall("stop_app", sessionID)
 
 	if err := h.sessionManager.RemoveSession(sessionID); err != nil {
 		return nil, err
@@ -232,7 +308,14 @@ func (h *Handlers) StopApp(ctx context.Context, request mcp.CallToolRequest) (*m
 }
 
 func (h *Handlers) ListSessions(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	utils.LogToolCall("list_sessions", "")
+	
 	sessions := h.sessionManager.ListSessions()
+	
+	slog.Debug("Sessions listed",
+		slog.String("tool", "list_sessions"),
+		slog.Int("count", len(sessions)),
+	)
 
 	// Convert sessions to JSON string
 	var sessionStrings []string
@@ -246,6 +329,66 @@ func (h *Handlers) ListSessions(ctx context.Context, request mcp.CallToolRequest
 			mcp.TextContent{
 				Type: "text",
 				Text: fmt.Sprintf(`{"sessions": [%s]}`, strings.Join(sessionStrings, ", ")),
+			},
+		},
+	}, nil
+}
+
+func (h *Handlers) ResizeTerminal(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := request.GetArguments()
+	sessionID, ok := args["session_id"].(string)
+	if !ok {
+		err := fmt.Errorf("session_id parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "resize_terminal"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	width, ok := args["width"].(float64)
+	if !ok {
+		err := fmt.Errorf("width parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "resize_terminal"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	height, ok := args["height"].(float64)
+	if !ok {
+		err := fmt.Errorf("height parameter is required")
+		slog.Error("Invalid tool call",
+			slog.String("tool", "resize_terminal"),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	utils.LogToolCall("resize_terminal", sessionID,
+		slog.Int("width", int(width)),
+		slog.Int("height", int(height)),
+	)
+
+	sess, err := h.sessionManager.GetSession(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := sess.Resize(int(width), int(height)); err != nil {
+		utils.LogError(err, "Failed to resize terminal",
+			slog.String("tool", "resize_terminal"),
+			slog.String("session_id", sessionID),
+		)
+		return nil, err
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: fmt.Sprintf(`{"success": true, "width": %d, "height": %d}`, int(width), int(height)),
 			},
 		},
 	}, nil
