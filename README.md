@@ -31,6 +31,14 @@ This server acts as a bridge between AI assistants (like Claude) and terminal ap
 - ✅ Proper renderRaw() with ANSI sequences
 - ✅ Multiple output formats including scrollback
 
+### Phase 3: Testing & Robustness (IN PROGRESS 🚧)
+- ✅ Comprehensive integration test framework
+- ✅ Tests for all 9 MCP tools
+- ✅ Test applications (echo, menu, progress)
+- ✅ 13 out of 18 integration tests passing
+- 🚧 Error recovery and session management
+- 🚧 Performance optimizations
+
 ## Quick Start
 
 ```bash
@@ -134,6 +142,10 @@ make test-coverage
 
 # Run integration tests
 make test-integration
+
+# Run specific test suites
+make test-terminal    # Terminal package tests
+make test-session     # Session manager tests
 ```
 
 ## License
