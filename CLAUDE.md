@@ -1,6 +1,6 @@
 # AI Assistant Context for MCP Terminal Tester
 
-## Project Status (as of June 11, 2025)
+## Project Status (as of January 11, 2025)
 
 ### Current State
 - **Phase 3 IN PROGRESS**: Integration testing and robustness improvements
@@ -234,3 +234,27 @@ All code is fully implemented and builds successfully. The main areas needing wo
 8. ⏳ Write API documentation with examples
 9. ⏳ Profile code and optimize hot paths
 10. ⏳ Add graceful session cleanup on errors
+
+## Integration Test Status (13/18 Passing)
+
+### Passing Tests ✅
+- TestLaunchApp
+- TestViewScreen (all formats)
+- TestSendKeys
+- TestGetCursorPosition
+- TestGetScreenSize
+- TestResizeTerminal
+- TestStopApp
+- TestListSessions
+- TestConcurrentSessions
+- TestSpecialKeys
+- TestErrorHandling
+- TestEchoApp
+- TestAnsiFormatShowsCursor
+
+### Failing Tests ❌
+- TestRestartApp - readLoop lifecycle issue
+- TestAnsiOutput - raw format not preserving ANSI
+- TestScrollbackFormat - not detecting historical content
+- TestMenuApp - 5s timeout
+- TestProgressApp - 5s timeout
