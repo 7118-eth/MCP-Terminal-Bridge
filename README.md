@@ -39,11 +39,21 @@ go mod download
 # Build the server
 make build
 
-# Run the server
+# Build test applications
+make test-apps
+
+# Run the server (stdio mode)
 ./bin/mcp-terminal-server
 
 # Or run directly
 go run cmd/server/main.go
+
+# Run tests
+make test
+
+# Test with example app (in another terminal)
+cd test/apps
+./echo
 ```
 
 ## MCP Tools

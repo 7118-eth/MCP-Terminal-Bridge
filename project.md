@@ -52,10 +52,11 @@ Implements MCP tools as defined handlers:
 
 **Core Tools:**
 - `launch_app`: Start new terminal application
-- `view_screen`: Get current terminal content
+- `view_screen`: Get current terminal content (supports plain/raw/ansi/scrollback formats)
 - `send_keys`: Send keyboard input
 - `get_cursor_position`: Get cursor location
 - `get_screen_size`: Get terminal dimensions
+- `resize_terminal`: Dynamically resize terminal window
 - `restart_app`: Restart existing session
 - `stop_app`: Terminate session
 - `list_sessions`: List active sessions
