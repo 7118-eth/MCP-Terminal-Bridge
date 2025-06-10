@@ -38,13 +38,22 @@ func (h *Handlers) LaunchApp(ctx context.Context, request mcp.CallToolRequest) (
 	// Extract args if provided
 	var cmdArgs []string
 	if argsParam, exists := args["args"]; exists {
+		// Try []interface{} first
 		if argsArray, ok := argsParam.([]interface{}); ok {
 			for _, arg := range argsArray {
 				if argStr, ok := arg.(string); ok {
 					cmdArgs = append(cmdArgs, argStr)
 				}
 			}
+		} else if argsArray, ok := argsParam.([]string); ok {
+			// Also try []string directly
+			cmdArgs = argsArray
 		}
+		slog.Debug("Extracted args", 
+			slog.String("tool", "launch_app"),
+			slog.Any("args", cmdArgs),
+			slog.Any("raw_args", argsParam),
+		)
 	}
 
 	// Extract env if provided
@@ -336,6 +345,13 @@ func (h *Handlers) ListSessions(ctx context.Context, request mcp.CallToolRequest
 
 func (h *Handlers) ResizeTerminal(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := request.GetArguments()
+	
+	// Debug logging
+	slog.Debug("ResizeTerminal called", 
+		slog.String("tool", "resize_terminal"),
+		slog.Any("args", args),
+	)
+	
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
 		err := fmt.Errorf("session_id parameter is required")
@@ -346,22 +362,34 @@ func (h *Handlers) ResizeTerminal(ctx context.Context, request mcp.CallToolReque
 		return nil, err
 	}
 
-	width, ok := args["width"].(float64)
-	if !ok {
+	// Try to get width as float64 or int
+	var width float64
+	if w, ok := args["width"].(float64); ok {
+		width = w
+	} else if w, ok := args["width"].(int); ok {
+		width = float64(w)
+	} else {
 		err := fmt.Errorf("width parameter is required")
 		slog.Error("Invalid tool call",
 			slog.String("tool", "resize_terminal"),
 			slog.String("error", err.Error()),
+			slog.Any("width_type", fmt.Sprintf("%T", args["width"])),
 		)
 		return nil, err
 	}
 
-	height, ok := args["height"].(float64)
-	if !ok {
+	// Try to get height as float64 or int
+	var height float64
+	if h, ok := args["height"].(float64); ok {
+		height = h
+	} else if h, ok := args["height"].(int); ok {
+		height = float64(h)
+	} else {
 		err := fmt.Errorf("height parameter is required")
 		slog.Error("Invalid tool call",
 			slog.String("tool", "resize_terminal"),
 			slog.String("error", err.Error()),
+			slog.Any("height_type", fmt.Sprintf("%T", args["height"])),
 		)
 		return nil, err
 	}

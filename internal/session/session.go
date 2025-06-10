@@ -229,7 +229,10 @@ func (s *Session) Restart() error {
 	err = s.start()
 	if err != nil {
 		utils.LogError(err, "Failed to start session after restart", slog.String("session_id", s.ID))
+		s.State = StateError
 	} else {
+		// Give the process a moment to start before the readLoop begins reading
+		time.Sleep(50 * time.Millisecond)
 		slog.Info("Session restarted successfully", slog.String("session_id", s.ID))
 	}
 	return err

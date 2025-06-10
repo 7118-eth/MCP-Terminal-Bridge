@@ -40,7 +40,10 @@ test-coverage:
 # Run integration tests
 test-integration:
 	@echo "Running integration tests..."
-	$(GOTEST) -v -tags=integration ./test/integration
+	$(GOTEST) -v ./test/integration/... -timeout 30s
+
+# Run all tests including integration
+test-all: test test-integration
 
 # Run specific package tests
 test-terminal:
