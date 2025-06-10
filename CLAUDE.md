@@ -1,12 +1,14 @@
 # AI Assistant Context for MCP Terminal Tester
 
-## Project Status (as of January 10, 2025)
+## Project Status (as of June 11, 2025)
 
 ### Current State
-- **Phase 2 COMPLETE**: All core features implemented and tested
+- **Phase 3 IN PROGRESS**: Integration testing and robustness improvements
 - **9 MCP tools** fully implemented and working
+- **Integration tests**: 13 out of 18 passing
 - Builds successfully with `make build`
-- Ready for real-world testing with MCP clients
+- Unit tests: All passing ✅
+- Integration tests: Created comprehensive test framework
 
 ### Key Implementation Details
 
@@ -34,12 +36,31 @@
 3. **ansi**: Shows cursor position with ▮ marker
 4. **scrollback**: Includes historical lines before current screen
 
+### Recent Changes (Phase 3)
+
+1. **Integration Test Framework**:
+   - Created `test/integration/framework_test.go` with test harness
+   - Added mock CallToolRequest implementation
+   - Tests simulate real MCP client interactions
+
+2. **Parameter Type Fixes**:
+   - Fixed ResizeTerminal to accept both int and float64 for width/height
+   - Added debug logging to track parameter types
+   - Fixed argument extraction in LaunchApp
+
+3. **Test Improvements**:
+   - Updated tests to use `sh -c` with sleep to keep sessions alive
+   - Fixed immediate command termination issues
+   - Added proper error handling in test framework
+
 ### Known Issues & Limitations
 
-1. **Test Failures**: All unit tests now pass ✅
-   - Fixed newline handling expectations (LF correctly doesn't reset cursor X)
-   - Fixed cursor save/restore to be per-parser state
-   - Fixed scrollback buffer initialization
+1. **Integration Test Failures** (5 out of 18):
+   - **TestRestartApp**: Session becomes inactive after restart (readLoop lifecycle issue)
+   - **TestScrollbackFormat**: Not detecting historical content
+   - **TestAnsiOutput**: Raw format not preserving ANSI escape sequences
+   - **TestMenuApp**: Timing out (5s) - test app interaction issue
+   - **TestProgressApp**: Timing out (5s) - test app interaction issue
 
 2. **Not Implemented**:
    - Mouse support
@@ -56,9 +77,17 @@
 ### Testing Strategy
 
 #### Unit Tests
-- Run with: `make test-terminal` or `make test-session`
-- Some tests need fixes for proper newline handling
+- Run with: `make test`
+- All unit tests passing ✅
 - Coverage reports: `make test-coverage`
+- Specific suites: `make test-terminal` or `make test-session`
+
+#### Integration Tests
+- Run with: `make test-integration`
+- 13/18 tests passing
+- Framework in `test/integration/framework_test.go`
+- Tool tests in `test/integration/tools_test.go`
+- Test app tests in `test/integration/testapps_test.go`
 
 #### Test Applications
 Located in `test/apps/`:
@@ -90,12 +119,14 @@ Build all with: `cd test/apps && make all`
 - Consider adding command whitelist for production
 
 ### Next Development Steps
-1. Fix failing unit tests
-2. Add integration tests using the test apps
-3. Implement missing ANSI features as needed
-4. Add performance benchmarks
-5. Create example MCP client usage
-6. Document API with examples
+1. Fix remaining integration test failures (5 tests)
+2. Add error recovery from PTY crashes (in progress)
+3. Implement input validation for all tools
+4. Add performance optimizations (buffer pooling, RWMutex)
+5. Create vim-like test application
+6. Write API documentation with examples
+7. Profile and optimize hot paths
+8. Add graceful session cleanup on errors
 
 ### Debugging Tips
 - Set `LOG_LEVEL=debug` for verbose logging
@@ -118,14 +149,23 @@ make build
 # Run server (stdio mode)
 ./bin/mcp-terminal-server
 
-# Run tests
+# Run all unit tests
 make test
+
+# Run integration tests
+make test-integration
+
+# Run all tests (unit + integration)
+make test-all
 
 # Build test apps
 make test-apps
 
 # Clean everything
 make clean
+
+# With debug logging
+LOG_LEVEL=debug ./bin/mcp-terminal-server
 ```
 
 ### Important File Locations
@@ -177,4 +217,20 @@ This document should be updated as the project evolves.
 - `go.mod` / `go.sum` - Go dependencies
 - `.gitignore` - Git ignore rules
 
-All code is fully implemented and builds successfully. The main areas needing work are real-world testing and edge case handling.
+All code is fully implemented and builds successfully. The main areas needing work are:
+1. Fixing remaining integration test failures
+2. Error recovery and robustness improvements
+3. Performance optimizations
+4. Real-world testing with actual MCP clients
+
+## Current TODO List
+1. ✅ Create integration test framework for end-to-end testing
+2. ✅ Test all 9 MCP tools in integration tests
+3. 🚧 Add error recovery from PTY crashes (in progress)
+4. ⏳ Implement input validation for all tools
+5. ⏳ Add buffer pooling for performance
+6. ⏳ Convert appropriate mutexes to RWMutex
+7. ⏳ Create vim-like test application
+8. ⏳ Write API documentation with examples
+9. ⏳ Profile code and optimize hot paths
+10. ⏳ Add graceful session cleanup on errors
