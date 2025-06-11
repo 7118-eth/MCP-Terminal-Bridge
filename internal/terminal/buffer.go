@@ -7,6 +7,13 @@ import (
 	"sync"
 )
 
+// Buffer pool for render operations to reduce allocations
+var renderBufferPool = sync.Pool{
+	New: func() interface{} {
+		return &bytes.Buffer{}
+	},
+}
+
 type Cell struct {
 	Rune       rune
 	Foreground Color
@@ -68,6 +75,14 @@ func NewScreenBuffer(width, height int) *ScreenBuffer {
 
 	sb.parser = NewANSIParser(sb)
 	return sb
+}
+
+// Close releases resources associated with the screen buffer
+func (sb *ScreenBuffer) Close() {
+	if sb.parser != nil {
+		sb.parser.Release()
+		sb.parser = nil
+	}
 }
 
 // SetScrollbackSize sets the maximum scrollback buffer size
@@ -219,7 +234,11 @@ func (sb *ScreenBuffer) Render(format string) (string, error) {
 }
 
 func (sb *ScreenBuffer) renderPlain() string {
-	var buf bytes.Buffer
+	buf := renderBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		renderBufferPool.Put(buf)
+	}()
 
 	for y := 0; y < sb.height; y++ {
 		for x := 0; x < sb.width; x++ {
@@ -235,7 +254,11 @@ func (sb *ScreenBuffer) renderPlain() string {
 }
 
 func (sb *ScreenBuffer) renderRaw() string {
-	var buf bytes.Buffer
+	buf := renderBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		renderBufferPool.Put(buf)
+	}()
 	
 	// Track current state to minimize escape sequences
 	currentFG := Color{Default: true}
@@ -275,7 +298,11 @@ func (sb *ScreenBuffer) renderRaw() string {
 }
 
 func (sb *ScreenBuffer) renderANSI() string {
-	var buf bytes.Buffer
+	buf := renderBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		renderBufferPool.Put(buf)
+	}()
 
 	for y := 0; y < sb.height; y++ {
 		for x := 0; x < sb.width; x++ {
@@ -517,7 +544,11 @@ func (sb *ScreenBuffer) GetScrollback() [][]Cell {
 
 // renderWithScrollback renders the buffer including scrollback history
 func (sb *ScreenBuffer) renderWithScrollback() string {
-	var buf bytes.Buffer
+	buf := renderBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		renderBufferPool.Put(buf)
+	}()
 
 	// First render scrollback
 	scrollbackLines := sb.GetScrollback()
@@ -536,46 +567,58 @@ func (sb *ScreenBuffer) renderWithScrollback() string {
 
 // buildSGRSequence builds an ANSI SGR sequence for the given attributes
 func (sb *ScreenBuffer) buildSGRSequence(fg, bg Color, attrs Attributes) string {
-	var params []string
-
 	// Reset if all defaults
 	if fg.Default && bg.Default && attrs == (Attributes{}) {
 		return "\x1b[0m"
 	}
 
+	var builder strings.Builder
+	builder.WriteString("\x1b[")
+	hasParam := false
+
+	// Helper to add separator if needed
+	addParam := func(param string) {
+		if hasParam {
+			builder.WriteByte(';')
+		}
+		builder.WriteString(param)
+		hasParam = true
+	}
+
 	// Attributes
 	if attrs.Bold {
-		params = append(params, "1")
+		addParam("1")
 	}
 	if attrs.Italic {
-		params = append(params, "3")
+		addParam("3")
 	}
 	if attrs.Underline {
-		params = append(params, "4")
+		addParam("4")
 	}
 	if attrs.Blink {
-		params = append(params, "5")
+		addParam("5")
 	}
 	if attrs.Reverse {
-		params = append(params, "7")
+		addParam("7")
 	}
 	if attrs.Hidden {
-		params = append(params, "8")
+		addParam("8")
 	}
 
 	// Foreground color
 	if !fg.Default {
-		params = append(params, fmt.Sprintf("38;2;%d;%d;%d", fg.R, fg.G, fg.B))
+		addParam(fmt.Sprintf("38;2;%d;%d;%d", fg.R, fg.G, fg.B))
 	}
 
 	// Background color
 	if !bg.Default {
-		params = append(params, fmt.Sprintf("48;2;%d;%d;%d", bg.R, bg.G, bg.B))
+		addParam(fmt.Sprintf("48;2;%d;%d;%d", bg.R, bg.G, bg.B))
 	}
 
-	if len(params) == 0 {
+	if !hasParam {
 		return ""
 	}
 
-	return fmt.Sprintf("\x1b[%sm", strings.Join(params, ";"))
+	builder.WriteByte('m')
+	return builder.String()
 }

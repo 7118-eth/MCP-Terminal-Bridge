@@ -327,6 +327,11 @@ func (s *Session) Close() error {
 	// Wait for readLoop to finish
 	s.readLoopWG.Wait()
 	
+	// Clean up buffer resources
+	if s.Buffer != nil {
+		s.Buffer.Close()
+	}
+	
 	return err
 }
 

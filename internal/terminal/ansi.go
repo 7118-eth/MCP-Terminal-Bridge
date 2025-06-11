@@ -24,7 +24,7 @@ type cursorState struct {
 type ANSIParser struct {
 	buffer       *ScreenBuffer
 	state        parserState
-	escapeBuffer bytes.Buffer
+	escapeBuffer *bytes.Buffer // Use pointer for pooling
 	currentFG    Color
 	currentBG    Color
 	currentAttrs Attributes
@@ -43,11 +43,23 @@ const (
 )
 
 func NewANSIParser(buffer *ScreenBuffer) *ANSIParser {
+	buf := escapeBufferPool.Get().(*bytes.Buffer)
+	buf.Reset() // Ensure buffer is clean
 	return &ANSIParser{
-		buffer:    buffer,
-		state:     stateNormal,
-		currentFG: Color{Default: true},
-		currentBG: Color{Default: true},
+		buffer:       buffer,
+		state:        stateNormal,
+		currentFG:    Color{Default: true},
+		currentBG:    Color{Default: true},
+		escapeBuffer: buf,
+	}
+}
+
+// Release returns the escape buffer to the pool
+func (p *ANSIParser) Release() {
+	if p.escapeBuffer != nil {
+		p.escapeBuffer.Reset()
+		escapeBufferPool.Put(p.escapeBuffer)
+		p.escapeBuffer = nil
 	}
 }
 
