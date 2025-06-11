@@ -4,7 +4,15 @@ import (
 	"bytes"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// Buffer pool for escape sequence parsing to reduce allocations
+var escapeBufferPool = sync.Pool{
+	New: func() interface{} {
+		return &bytes.Buffer{}
+	},
+}
 
 // cursorState holds saved cursor position and attributes
 type cursorState struct {

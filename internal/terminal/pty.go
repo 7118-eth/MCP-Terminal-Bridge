@@ -15,6 +15,13 @@ import (
 	"github.com/bioharz/mcp-terminal-tester/internal/utils"
 )
 
+// Buffer pool for PTY reads to reduce GC pressure
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 4096)
+	},
+}
+
 type PTYWrapper struct {
 	cmd         *exec.Cmd
 	pty         *os.File
@@ -84,18 +91,25 @@ func (p *PTYWrapper) Read() ([]byte, error) {
 		return nil, fmt.Errorf("PTY not started")
 	}
 
-	// Read up to 4KB at a time
-	buf := make([]byte, 4096)
+	// Get buffer from pool to reduce allocations
+	buf := bufferPool.Get().([]byte)
 	n, err := p.reader.Read(buf)
 	if err != nil {
 		if err == io.EOF {
 			// Process has exited
+			bufferPool.Put(buf) // Return buffer to pool
 			return nil, err
 		}
+		bufferPool.Put(buf) // Return buffer to pool
 		return nil, fmt.Errorf("failed to read from PTY: %w", err)
 	}
 
-	return buf[:n], nil
+	// Create a copy of the data since we need to return the buffer to pool
+	result := make([]byte, n)
+	copy(result, buf[:n])
+	bufferPool.Put(buf) // Return buffer to pool
+
+	return result, nil
 }
 
 func (p *PTYWrapper) Write(data []byte) error {

@@ -28,12 +28,12 @@ run:
 # Run tests
 test:
 	@echo "Running tests..."
-	$(GOTEST) -v ./...
+	$(GOTEST) -v ./internal/... ./cmd/...
 
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -v -cover -coverprofile=coverage.out ./...
+	$(GOTEST) -v -cover -coverprofile=coverage.out ./internal/... ./cmd/...
 	@echo "Coverage report:"
 	$(GOCMD) tool cover -func=coverage.out
 

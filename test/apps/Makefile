@@ -1,6 +1,6 @@
-.PHONY: all clean echo menu progress
+.PHONY: all clean echo menu progress vim
 
-all: echo menu progress
+all: echo menu progress vim
 
 echo:
 	go build -o echo echo.go
@@ -11,8 +11,11 @@ menu:
 progress:
 	go build -o progress progress.go
 
+vim:
+	go build -o vim vim.go
+
 clean:
-	rm -f echo menu progress
+	rm -f echo menu progress vim
 
 run-echo: echo
 	./echo
@@ -22,3 +25,6 @@ run-menu: menu
 
 run-progress: progress
 	./progress
+
+run-vim: vim
+	./vim

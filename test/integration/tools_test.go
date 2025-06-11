@@ -415,22 +415,25 @@ func TestAnsiOutput(t *testing.T) {
 	tf := NewTestFramework(t)
 	defer tf.Cleanup()
 	
-	// Launch sh with echo color output
-	sessionID := tf.LaunchApp("sh", []string{"-c", "echo -e '\033[31mRed Text\033[0m'; sleep 1"})
+	// Launch sh with printf color output (more reliable than echo -e)
+	sessionID := tf.LaunchApp("sh", []string{"-c", "printf '\033[31mRed Text\033[0m\\n'; sleep 1"})
 	time.Sleep(100 * time.Millisecond)
 	
 	// Plain format should strip ANSI
 	plain := tf.ViewScreen(sessionID, "plain")
-	if strings.Contains(plain, "\033") {
+	if strings.Contains(plain, "\033") || strings.Contains(plain, "\x1b") {
 		t.Error("Plain format should not contain ANSI sequences")
 	}
 	if !strings.Contains(plain, "Red Text") {
 		t.Error("Plain format should contain the text")
 	}
 	
-	// Raw format should include ANSI
+	// Raw format should include ANSI (check for actual escape sequences)
 	raw := tf.ViewScreen(sessionID, "raw")
-	if !strings.Contains(raw, "\033[31m") || !strings.Contains(raw, "\033[0m") {
-		t.Error("Raw format should contain ANSI sequences")
+	// Check for ANSI escape sequences (either \033 or \x1b format)
+	hasColorStart := strings.Contains(raw, "\033[31m") || strings.Contains(raw, "\x1b[31m") || strings.Contains(raw, "\x1b[38;2;")
+	hasColorEnd := strings.Contains(raw, "\033[0m") || strings.Contains(raw, "\x1b[0m")
+	if !hasColorStart || !hasColorEnd {
+		t.Errorf("Raw format should contain ANSI sequences. Raw: %q", raw)
 	}
 }

@@ -30,6 +30,8 @@ type Session struct {
 	LastActive time.Time
 	State      SessionState
 	mu         sync.RWMutex
+	done       chan struct{}
+	readLoopWG sync.WaitGroup
 }
 
 type SessionInfo struct {
@@ -74,6 +76,7 @@ func NewSession(command string, args []string, env map[string]string) (*Session,
 		Created:    time.Now(),
 		LastActive: time.Now(),
 		State:      StateActive,
+		done:       make(chan struct{}),
 	}
 
 	// Start PTY and connect it to the buffer
@@ -99,17 +102,72 @@ func (s *Session) start() error {
 	slog.Debug("PTY started", slog.String("session_id", s.ID))
 
 	// Start goroutine to read from PTY and update buffer
+	s.readLoopWG.Add(1)
 	go s.readLoop()
 
 	return nil
 }
 
 func (s *Session) readLoop() {
+	defer s.readLoopWG.Done()
 	slog.Debug("Starting read loop", slog.String("session_id", s.ID))
 	
+	// Panic recovery for robustness
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Read loop panic recovered",
+				slog.String("session_id", s.ID),
+				slog.Any("panic", r),
+			)
+			s.mu.Lock()
+			s.State = StateError
+			s.mu.Unlock()
+		}
+	}()
+	
+	// Create channels for coordinating PTY read operations
+	dataCh := make(chan []byte, 1)
+	errorCh := make(chan error, 1)
+	
+	// Start PTY reader goroutine
+	go func() {
+		for {
+			// Check if we should stop
+			select {
+			case <-s.done:
+				return
+			default:
+			}
+			
+			data, err := s.PTY.Read()
+			if err != nil {
+				errorCh <- err
+				return
+			}
+			
+			select {
+			case dataCh <- data:
+			case <-s.done:
+				return
+			}
+		}
+	}()
+	
 	for {
-		data, err := s.PTY.Read()
-		if err != nil {
+		select {
+		case <-s.done:
+			slog.Debug("Read loop stopped by done signal", slog.String("session_id", s.ID))
+			return
+			
+		case data := <-dataCh:
+			// Update the screen buffer with new data
+			s.Buffer.Write(data)
+			slog.Debug("Buffer updated",
+				slog.String("session_id", s.ID),
+				slog.Int("bytes", len(data)),
+			)
+			
+		case err := <-errorCh:
 			s.mu.Lock()
 			s.State = StateError
 			s.mu.Unlock()
@@ -121,13 +179,6 @@ func (s *Session) readLoop() {
 			}
 			return
 		}
-
-		// Update the screen buffer with new data
-		s.Buffer.Write(data)
-		slog.Debug("Buffer updated",
-			slog.String("session_id", s.ID),
-			slog.Int("bytes", len(data)),
-		)
 	}
 }
 
@@ -202,11 +253,25 @@ func (s *Session) Restart() error {
 
 	slog.Info("Restarting session", slog.String("session_id", s.ID))
 
+	// Signal readLoop to stop if not already closed
+	select {
+	case <-s.done:
+		// Already closed
+	default:
+		close(s.done)
+	}
+	
 	// Stop current process
 	if err := s.PTY.Stop(); err != nil {
 		utils.LogError(err, "Failed to stop PTY during restart", slog.String("session_id", s.ID))
 		return err
 	}
+	
+	// Wait for readLoop to finish
+	s.readLoopWG.Wait()
+	
+	// Create new done channel
+	s.done = make(chan struct{})
 
 	// Clear buffer
 	s.Buffer.Clear()
@@ -231,8 +296,6 @@ func (s *Session) Restart() error {
 		utils.LogError(err, "Failed to start session after restart", slog.String("session_id", s.ID))
 		s.State = StateError
 	} else {
-		// Give the process a moment to start before the readLoop begins reading
-		time.Sleep(50 * time.Millisecond)
 		slog.Info("Session restarted successfully", slog.String("session_id", s.ID))
 	}
 	return err
@@ -245,12 +308,25 @@ func (s *Session) Close() error {
 	slog.Debug("Closing session", slog.String("session_id", s.ID))
 
 	s.State = StateStopped
+	
+	// Signal readLoop to stop if not already closed
+	select {
+	case <-s.done:
+		// Already closed
+	default:
+		close(s.done)
+	}
+	
 	err := s.PTY.Stop()
 	if err != nil {
 		utils.LogError(err, "Failed to stop PTY during close", slog.String("session_id", s.ID))
 	} else {
 		slog.Info("Session closed", slog.String("session_id", s.ID))
 	}
+	
+	// Wait for readLoop to finish
+	s.readLoopWG.Wait()
+	
 	return err
 }
 
