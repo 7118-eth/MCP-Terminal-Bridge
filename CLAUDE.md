@@ -9,9 +9,10 @@
 - **Unit tests**: All passing ✅
 - **Error recovery**: ✅ Panic recovery in readLoop, graceful cleanup
 - **Input validation**: ✅ Comprehensive validation for all tools (command injection, path traversal, UUID format, etc.)
-- **Performance optimizations**: ⚠️ Buffer pool defined but not actively used
+- **Performance optimizations**: ✅ Buffer pooling implemented and active
 - **API documentation**: ✅ Complete with examples (API.md)
 - **Test applications**: ✅ 4 apps including fully functional vim-like editor
+- **Raw ANSI passthrough**: ✅ True sequence preservation with 'passthrough' format
 
 ### Key Implementation Details
 
@@ -75,11 +76,10 @@
 
 ### Known Issues & Limitations
 
-1. **Performance Optimizations Partial**:
-   - Buffer pool defined in ansi.go but not actively used
-   - Most operations still use regular Mutex instead of RWMutex
-   - No output caching implemented
-   - Escape buffer allocations still happen per parser
+1. **Performance Optimizations Remaining**:
+   - ✅ Buffer pooling implemented for ANSI parser and render operations
+   - ⏳ Most operations still use regular Mutex instead of RWMutex
+   - ⏳ No output caching implemented yet
 
 2. **Not Implemented**:
    - Mouse support
@@ -87,7 +87,6 @@
    - Some advanced ANSI modes (DEC private modes)
    - Session persistence across server restarts
    - Rate limiting for input
-   - True raw ANSI passthrough (currently regenerates SGR sequences)
 
 3. **Platform Specific**:
    - SIGWINCH handling may vary on different OS
@@ -128,11 +127,11 @@ Build all with: `cd test/apps && make all`
 7. Error recovery (kill process, restart)
 
 ### Performance Considerations
-- Buffer pool defined but not actively used - need to implement Get/Put calls
-- Most operations use regular Mutex - convert read-heavy ops to RWMutex
-- ANSI parser has pool but doesn't use it for escape buffers
-- No output caching implemented yet
-- Consider using strings.Builder for render operations
+- ✅ Buffer pooling active for ANSI parser escape buffers and all render operations
+- ✅ Using strings.Builder for SGR sequence construction
+- ⏳ Most operations use regular Mutex - convert read-heavy ops to RWMutex
+- ⏳ No output caching implemented yet
+- ⏳ Consider caching frequently accessed render outputs
 
 ### Security Notes
 - ✅ Input validation prevents command injection (`;|&` blocked) and path traversal
@@ -260,13 +259,13 @@ All code is fully implemented and builds successfully. The main areas needing wo
 8. ✅ Added graceful session cleanup on errors
 
 ## Phase 4 TODO List - Performance & Advanced Features
-1. ⏳ Activate buffer pooling (currently defined but unused)
-2. ⏳ Convert Mutex to RWMutex for read-heavy operations
-3. ⏳ Add true raw ANSI passthrough (preserve original sequences)
+1. ✅ ~~Activate buffer pooling~~ - Implemented for parser and render operations
+2. ✅ ~~Add true raw ANSI passthrough~~ - 'passthrough' format preserves original sequences
+3. ⏳ Convert Mutex to RWMutex for read-heavy operations
 4. ⏳ Implement performance benchmarks
 5. ⏳ Add output caching for frequently accessed screens
 6. ⏳ Implement mouse support
 7. ⏳ Add alternate screen buffer support
 8. ⏳ Implement session persistence
 9. ⏳ Add rate limiting for input
-10. ⏳ Create profiling benchmarks
+10. ⏳ Create profiling support and optimization
