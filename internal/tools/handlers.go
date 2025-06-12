@@ -91,7 +91,7 @@ func validateKeys(keys string) error {
 }
 
 func validateFormat(format string) error {
-	validFormats := []string{"plain", "raw", "ansi", "scrollback"}
+	validFormats := []string{"plain", "raw", "ansi", "scrollback", "passthrough"}
 	for _, valid := range validFormats {
 		if format == valid {
 			return nil

@@ -46,6 +46,11 @@ type ScreenBuffer struct {
 	maxScrollback   int
 	scrollbackStart int // Index of first line in circular buffer
 	mu              sync.RWMutex
+	
+	// Raw data preservation
+	rawData         []byte       // Store raw input data with ANSI sequences
+	rawDataMu       sync.RWMutex // Separate mutex for raw data
+	maxRawDataSize  int          // Maximum size for raw data buffer
 }
 
 func NewScreenBuffer(width, height int) *ScreenBuffer {
@@ -62,12 +67,14 @@ func NewScreenBuffer(width, height int) *ScreenBuffer {
 	}
 
 	sb := &ScreenBuffer{
-		cells:         cells,
-		width:         width,
-		height:        height,
-		cursorX:       0,
-		cursorY:       0,
-		maxScrollback: 1000, // Default scrollback size
+		cells:          cells,
+		width:          width,
+		height:         height,
+		cursorX:        0,
+		cursorY:        0,
+		maxScrollback:  1000, // Default scrollback size
+		maxRawDataSize: 1024 * 1024, // 1MB max raw data buffer
+		rawData:        make([]byte, 0, 4096), // Start with 4KB capacity
 	}
 
 	// Initialize scrollback buffer
@@ -131,8 +138,26 @@ func (sb *ScreenBuffer) Write(data []byte) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 
+	// Store raw data for true passthrough
+	sb.storeRawData(data)
+	
 	// Parse ANSI sequences and update buffer
 	sb.parser.Parse(data)
+}
+
+// storeRawData appends raw data to the buffer with size management
+func (sb *ScreenBuffer) storeRawData(data []byte) {
+	sb.rawDataMu.Lock()
+	defer sb.rawDataMu.Unlock()
+	
+	// Append new data
+	sb.rawData = append(sb.rawData, data...)
+	
+	// Trim if exceeds max size (keep last 75% when trimming)
+	if len(sb.rawData) > sb.maxRawDataSize {
+		trimPoint := sb.maxRawDataSize / 4
+		sb.rawData = sb.rawData[trimPoint:]
+	}
 }
 
 func (sb *ScreenBuffer) SetCell(x, y int, r rune, fg, bg Color, attrs Attributes) {
@@ -179,6 +204,9 @@ func (sb *ScreenBuffer) Clear() {
 	}
 	sb.cursorX = 0
 	sb.cursorY = 0
+	
+	// Also clear raw data on full clear
+	sb.ClearRawData()
 }
 
 func (sb *ScreenBuffer) ClearLine(y int) {
@@ -228,6 +256,8 @@ func (sb *ScreenBuffer) Render(format string) (string, error) {
 		return sb.renderANSI(), nil
 	case "scrollback":
 		return sb.renderWithScrollback(), nil
+	case "passthrough":
+		return sb.renderPassthrough(), nil
 	default:
 		return sb.renderPlain(), nil
 	}
@@ -563,6 +593,34 @@ func (sb *ScreenBuffer) renderWithScrollback() string {
 	buf.WriteString(sb.renderPlain())
 
 	return buf.String()
+}
+
+// renderPassthrough returns the raw data exactly as received, preserving all ANSI sequences
+func (sb *ScreenBuffer) renderPassthrough() string {
+	sb.rawDataMu.RLock()
+	defer sb.rawDataMu.RUnlock()
+	
+	// Return a copy of the raw data as string
+	return string(sb.rawData)
+}
+
+// GetRawData returns a copy of the raw data buffer
+func (sb *ScreenBuffer) GetRawData() []byte {
+	sb.rawDataMu.RLock()
+	defer sb.rawDataMu.RUnlock()
+	
+	// Return a copy to prevent external modifications
+	result := make([]byte, len(sb.rawData))
+	copy(result, sb.rawData)
+	return result
+}
+
+// ClearRawData clears the raw data buffer
+func (sb *ScreenBuffer) ClearRawData() {
+	sb.rawDataMu.Lock()
+	defer sb.rawDataMu.Unlock()
+	
+	sb.rawData = sb.rawData[:0] // Keep capacity
 }
 
 // buildSGRSequence builds an ANSI SGR sequence for the given attributes

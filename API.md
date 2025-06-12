@@ -62,9 +62,10 @@ Captures the current terminal screen content in various formats.
 - `session_id` (string, required): Session identifier
 - `format` (string, optional): Output format (default: "plain")
   - `plain`: Text only, ANSI sequences stripped
-  - `raw`: Full output with ANSI escape sequences
+  - `raw`: Full output with ANSI escape sequences reconstructed from cell attributes
   - `ansi`: Debug format showing cursor position with ▮
   - `scrollback`: Includes scrollback buffer history
+  - `passthrough`: Original data exactly as received, preserving all ANSI sequences
 
 **Returns:**
 - `content`: The screen content
