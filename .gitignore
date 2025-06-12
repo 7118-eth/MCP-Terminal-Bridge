@@ -38,3 +38,12 @@ tmp/
 # Build directories
 bin/
 dist/
+
+# Profiling files
+*.prof
+
+# Test application binaries
+test/apps/echo
+test/apps/menu
+test/apps/progress
+test/apps/vim
