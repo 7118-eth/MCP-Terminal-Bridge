@@ -1,6 +1,6 @@
 # Test Applications
 
-This directory contains test applications for the MCP Terminal Tester.
+This directory contains test applications for TerminalBridge.
 
 ## Applications
 

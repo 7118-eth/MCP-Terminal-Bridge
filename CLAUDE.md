@@ -1,4 +1,4 @@
-# AI Assistant Context for MCP Terminal Tester
+# AI Assistant Context for TerminalBridge
 
 ## Project Status (as of January 11, 2025)
 
@@ -172,7 +172,7 @@ Build all with: `cd test/apps && make all`
 make build
 
 # Run server (stdio mode)
-./bin/mcp-terminal-server
+./bin/terminalbridge
 
 # Run all unit tests
 make test
@@ -190,7 +190,7 @@ make test-apps
 make clean
 
 # With debug logging
-LOG_LEVEL=debug ./bin/mcp-terminal-server
+LOG_LEVEL=debug ./bin/terminalbridge
 ```
 
 ### Important File Locations

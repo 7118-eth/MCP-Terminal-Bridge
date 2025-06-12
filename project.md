@@ -1,4 +1,5 @@
-# MCP Terminal Tester - Technical Design Document
+# TerminalBridge - Technical Design Document
+*Headless yet Powerful*
 
 ## Project Overview
 
@@ -432,7 +433,7 @@ type Config struct {
 2. **Dependencies**: `go mod download`
 3. **Build**: `make build`
 4. **Test**: `make test`
-5. **Run**: `./bin/mcp-terminal-server`
+5. **Run**: `./bin/terminalbridge`
 6. **Debug**: Set LOG_LEVEL=debug
 
 ## Success Criteria

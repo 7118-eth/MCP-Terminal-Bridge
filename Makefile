@@ -1,7 +1,7 @@
 .PHONY: build run test clean install deps lint
 
 # Binary name
-BINARY_NAME=mcp-terminal-server
+BINARY_NAME=terminalbridge
 BUILD_DIR=bin
 
 # Go parameters

@@ -1,4 +1,5 @@
-# MCP Terminal Tester - Progress Tracking
+# TerminalBridge - Progress Tracking
+*Headless yet Powerful*
 
 ## Current Status
 - **Date**: January 11, 2025  

@@ -1,6 +1,7 @@
-# MCP Terminal Tester - API Documentation
+# TerminalBridge - API Documentation
+*Headless yet Powerful*
 
-The MCP Terminal Tester provides 9 tools for interacting with terminal applications through the Model Context Protocol (MCP).
+TerminalBridge provides 9 tools for interacting with terminal applications through the Model Context Protocol (MCP).
 
 ## Tools Overview
 

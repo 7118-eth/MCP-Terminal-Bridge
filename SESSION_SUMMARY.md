@@ -1,4 +1,5 @@
 # Session Summary - January 11, 2025
+## TerminalBridge - *Headless yet Powerful*
 
 ## Work Completed in This Session
 

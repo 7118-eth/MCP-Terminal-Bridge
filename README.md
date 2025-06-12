@@ -1,6 +1,7 @@
-# MCP Terminal Tester
+# TerminalBridge
+*Headless yet Powerful*
 
-An MCP (Model Context Protocol) server that enables AI assistants to test and interact with terminal/TUI applications.
+An MCP (Model Context Protocol) server that enables AI assistants to seamlessly control and interact with terminal/TUI applications.
 
 ## Overview
 
@@ -52,7 +53,7 @@ make build
 make test-apps
 
 # Run the server (stdio mode)
-./bin/mcp-terminal-server
+./bin/terminalbridge
 
 # Or run directly
 go run cmd/server/main.go
